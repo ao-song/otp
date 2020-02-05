@@ -22,10 +22,13 @@
 
 -module(pubkey_ocsp).
 
+-include("public_key.hrl").
+
 -behaviour(gen_server).
 
 %% API
 -export([start_link/0]).
+-export([validate_cert/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -38,7 +41,7 @@
 -define(SERVER, ?MODULE).
 
 -record(state, {
-    is_inets_prestarted = false
+    is_inets_already_started = false
 }).
 
 %%%===================================================================
@@ -54,6 +57,16 @@
 %%--------------------------------------------------------------------
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Check the status of a cert.
+%%
+%% @spec validate_cert(Cert, ResponderURL) -> ok
+%% @end
+%%--------------------------------------------------------------------
+validate_cert(Cert, ResponderURL) ->
+    gen_server:cast({validate_cert, Cert, ResponderURL}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -75,7 +88,7 @@ init([]) ->
         ok ->
             {ok, #state{}};
         {error, {already_started, inets}} ->
-            {ok, #state{is_inets_prestarted = true}};
+            {ok, #state{is_inets_already_started = true}};
         {error, Reason} ->
             {stop, Reason}
     end.
@@ -108,6 +121,8 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_cast({validate_cert, _Cert, _ResponderURL}, State) ->
+    {noreply, State};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -153,7 +168,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-stop_inets(#state{is_inets_prestarted = false}) ->
+stop_inets(#state{is_inets_already_started = false}) ->
     inets:stop();
 stop_inets(_State) ->
     ok.
