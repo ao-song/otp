@@ -28,7 +28,7 @@
 
 %% API
 -export([start_link/0]).
--export([validate_cert/2]).
+-export([validate_cert/3]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -69,8 +69,8 @@ start_link() ->
 %% @spec validate_cert(Cert, ResponderURL) -> ok
 %% @end
 %%--------------------------------------------------------------------
-validate_cert(Cert, ResponderURL) ->
-    gen_server:cast({validate_cert, Cert, ResponderURL}).
+validate_cert(ResponderURL, Cert, CAChain) ->
+    gen_server:cast({validate_cert, ResponderURL, Cert, CAChain}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -125,8 +125,8 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast({validate_cert, Certificate, _ResponderURL}, State) ->
-    _Cert = public_key:pkix_decode_cert(Certificate, plain),
+handle_cast({validate_cert, ResponderURL, Cert, CAChain}, State) ->
+    Request = set_request(Cert, CAChain),
     {noreply, State};
 handle_cast(_Msg, State) ->
     {noreply, State}.
@@ -178,15 +178,27 @@ stop_inets(#state{is_inets_already_started = false}) ->
 stop_inets(_State) ->
     ok.
 
+set_request(Cert, CAChain) ->
+    get_certID(Cert, CAChain),
+    ok. % todo
+
+get_certID(Cert, CAChain) ->
+    #'CertID'{
+        hashAlgorithm = get_hash_algorithm(),
+        issuerNameHash = get_issuer_name_hash(get_issuer_name(Cert)),
+        issuerKeyHash =
+            get_issuer_key_hash(get_public_key(get_issuer_cert(Cert, CAChain))),
+        serialNumber = get_serial_num(Cert)
+    }.
+
 get_issuer_name(Cert) ->
     #'OTPCertificate'{tbsCertificate = TbsCert} = otp_cert(Cert),
-    TbsCert#'TBSCertificate'.issuer.
+    TbsCert#'OTPTBSCertificate'.issuer.
 
 get_public_key(Cert) ->
-    #'OTPCertificate'{subjectPublicKeyInfo = Info} = otp_cert(Cert),
-    %% to do
-    ok.
-
+    #'OTPCertificate'{tbsCertificate = TbsCert} = otp_cert(Cert),
+    PKInfo = TbsCert#'OTPTBSCertificate'.subjectPublicKeyInfo,
+    PKInfo#'SubjectPublicKeyInfo'.subjectPublicKey.
 
 %% self-signed?
 get_issuer_cert(Cert, []) ->
@@ -215,6 +227,10 @@ get_issuer_name_hash(Issuer) ->
 
 get_issuer_key_hash(Key) ->
     crypto:hash(sha512, Key).
+
+get_serial_num(Cert) ->
+    #'OTPCertificate'{tbsCertificate = TbsCert} = otp_cert(Cert),
+    TbsCert#'OTPTBSCertificate'.serialNumber.
 
 otp_cert(Cert) when is_binary(Cert) ->
     public_key:pkix_decode_cert(Cert, plain);
