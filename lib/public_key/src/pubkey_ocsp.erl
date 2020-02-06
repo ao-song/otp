@@ -43,6 +43,7 @@
 
 -define(SERVER, ?MODULE).
 -define(DER_NULL, <<5, 0>>).
+-define(EXT_NULL, null).
 
 -record(state, {
     is_inets_already_started = false
@@ -69,8 +70,8 @@ start_link() ->
 %% @spec validate_cert(Cert, ResponderURL) -> ok
 %% @end
 %%--------------------------------------------------------------------
-validate_cert(ResponderURL, Cert, CAChain) ->
-    gen_server:cast({validate_cert, ResponderURL, Cert, CAChain}).
+validate_cert(ResponderURL, Certs, CAChain) when is_list(Certs) ->
+    gen_server:cast({validate_cert, ResponderURL, Certs, CAChain}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -125,8 +126,8 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast({validate_cert, ResponderURL, Cert, CAChain}, State) ->
-    Request = set_request(Cert, CAChain),
+handle_cast({validate_cert, ResponderURL, Certs, CAChain}, State) ->
+    Request = assemble_ocsp_request(Certs, CAChain),
     {noreply, State};
 handle_cast(_Msg, State) ->
     {noreply, State}.
@@ -178,9 +179,19 @@ stop_inets(#state{is_inets_already_started = false}) ->
 stop_inets(_State) ->
     ok.
 
-set_request(Cert, CAChain) ->
+assemble_ocsp_request(Cert, CAChain) ->
     get_certID(Cert, CAChain),
     ok. % todo
+
+get_request(CertID, ?EXT_NULL) ->
+    #'Request'{
+        reqCert = CertID
+    };
+get_request(CertID, Exts) ->
+    #'Request'{
+        reqCert = CertID,
+        singleRequestExtensions = Exts
+    }.
 
 get_certID(Cert, CAChain) ->
     #'CertID'{
@@ -236,4 +247,3 @@ otp_cert(Cert) when is_binary(Cert) ->
     public_key:pkix_decode_cert(Cert, plain);
 otp_cert(#'OTPCertificate'{} = Cert) ->
     Cert.
-
