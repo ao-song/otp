@@ -38,7 +38,11 @@
          terminate/2,
          code_change/3]).
 
+%% type
+
+
 -define(SERVER, ?MODULE).
+-define(DER_NULL, <<5, 0>>).
 
 -record(state, {
     is_inets_already_started = false
@@ -121,7 +125,8 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast({validate_cert, _Cert, _ResponderURL}, State) ->
+handle_cast({validate_cert, Certificate, _ResponderURL}, State) ->
+    _Cert = public_key:pkix_decode_cert(Certificate, plain),
     {noreply, State};
 handle_cast(_Msg, State) ->
     {noreply, State}.
@@ -173,5 +178,46 @@ stop_inets(#state{is_inets_already_started = false}) ->
 stop_inets(_State) ->
     ok.
 
+get_issuer_name(Cert) ->
+    #'OTPCertificate'{tbsCertificate = TbsCert} = otp_cert(Cert),
+    TbsCert#'TBSCertificate'.issuer.
 
+get_public_key(Cert) ->
+    #'OTPCertificate'{subjectPublicKeyInfo = Info} = otp_cert(Cert),
+    %% to do
+    ok.
+
+
+%% self-signed?
+get_issuer_cert(Cert, []) ->
+    case public_key:pkix_is_self_signed(Cert) of
+        true ->
+            Cert;
+        false ->
+            undefined
+    end;
+get_issuer_cert(Cert, [IssuerCert | Chain]) ->
+    case public_key:pkix_is_issuer(Cert, IssuerCert) of
+        true ->
+            IssuerCert;
+        false ->
+            get_issuer_cert(Cert, Chain)
+    end.
+
+get_hash_algorithm() ->
+    #'AlgorithmIdentifier'{
+        algorithm = ?'id-sha512',
+        parameters = ?DER_NULL
+    }.
+
+get_issuer_name_hash(Issuer) ->
+    crypto:hash(sha512, public_key:pkix_encode('Name', Issuer, otp)).
+
+get_issuer_key_hash(Key) ->
+    crypto:hash(sha512, Key).
+
+otp_cert(Cert) when is_binary(Cert) ->
+    public_key:pkix_decode_cert(Cert, plain);
+otp_cert(#'OTPCertificate'{} = Cert) ->
+    Cert.
 
