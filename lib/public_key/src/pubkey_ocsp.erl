@@ -46,7 +46,8 @@
 -define(EXT_NULL, null).
 
 -record(state, {
-    is_inets_already_started = false
+    is_inets_already_started = false,
+    requestIDs = []
 }).
 
 %%%===================================================================
@@ -126,9 +127,13 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast({validate_cert, ResponderURL, Certs, CAChain}, State) ->
+handle_cast({validate_cert, ResponderURL, Certs, CAChain},
+            #state{requestIDs = ReqIDs} = State) ->
     Request = assemble_ocsp_request(Certs, CAChain),
-    {noreply, State};
+    {ok, RequestId} = httpc:request(
+        post, {ResponderURL, [], "application/ocsp-request", Request},
+        [], [{sync, false}, {receiver, self()}]),
+    {noreply, State#state{requestIDs = [RequestId | ReqIDs]}};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -142,6 +147,22 @@ handle_cast(_Msg, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_info({http, {_RequestId, saved_to_file}}, State) ->
+    {noreply, State};
+handle_info({http, {_RequestId, {error, Reason}}}, State) ->
+    %% debug
+    io:format("httpc response error: ~p~n", [Reason]),
+    {noreply, State};
+handle_info({http, {_RequestId, {_StatusLine, _Headers, Body}}}, State) ->
+    OCSPResponse = 'OTP-PUB-KEY':decode('OCSPResponse', Body),
+    %% debug
+    io:format("ocsp response: ~p~n", [OCSPResponse]),
+    {noreply, State};
+handle_info({http, {_RequestId, {_StatusCode, Body}}}, State) ->
+    OCSPResponse = 'OTP-PUB-KEY':decode('OCSPResponse', Body),
+    %% debug
+    io:format("ocsp response: ~p~n", [OCSPResponse]),
+    {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -179,9 +200,13 @@ stop_inets(#state{is_inets_already_started = false}) ->
 stop_inets(_State) ->
     ok.
 
-assemble_ocsp_request(Cert, CAChain) ->
-    get_certID(Cert, CAChain),
-    ok. % todo
+assemble_ocsp_request(Certs, CAChain) when is_list(Certs) ->
+    Requests =
+        [get_request(get_certID(Cert, CAChain), ?EXT_NULL) || Cert <- Certs],
+    TBSRequest = #'TBSRequest'{requestList = Requests},
+    'OTP-PUB-KEY':encode(
+        'OCSPRequest', #'OCSPRequest'{tbsRequest = TBSRequest}).
+
 
 get_request(CertID, ?EXT_NULL) ->
     #'Request'{
