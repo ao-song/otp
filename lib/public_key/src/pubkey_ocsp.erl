@@ -129,10 +129,10 @@ handle_call(_Request, _From, State) ->
 %%--------------------------------------------------------------------
 handle_cast({validate_cert, ResponderURL, Certs, CAChain},
             #state{requestIDs = ReqIDs} = State) ->
-    Request = assemble_ocsp_request(Certs, CAChain),
+    Request = create_ocsp_request(Certs, CAChain),
     {ok, RequestId} = httpc:request(
         post, {ResponderURL, [], "application/ocsp-request", Request},
-        [], [{sync, false}, {receiver, self()}]),
+        [], [{stream, none}, {sync, false}, {receiver, self()}]),
     {noreply, State#state{requestIDs = [RequestId | ReqIDs]}};
 handle_cast(_Msg, State) ->
     {noreply, State}.
@@ -147,22 +147,23 @@ handle_cast(_Msg, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_info({http, {_RequestId, saved_to_file}}, State) ->
-    {noreply, State};
-handle_info({http, {_RequestId, {error, Reason}}}, State) ->
+handle_info({http, {RequestId, {error, Reason}}},
+            #state{requestIDs = ReqIDs} = State) ->
     %% debug
     io:format("httpc response error: ~p~n", [Reason]),
-    {noreply, State};
-handle_info({http, {_RequestId, {_StatusLine, _Headers, Body}}}, State) ->
+    {noreply, State#state{requestIDs = lists:delete(RequestId, ReqIDs)}};
+handle_info({http, {RequestId, {_StatusLine, _Headers, Body}}},
+            #state{requestIDs = ReqIDs} = State) ->
     OCSPResponse = 'OTP-PUB-KEY':decode('OCSPResponse', Body),
     %% debug
     io:format("ocsp response: ~p~n", [OCSPResponse]),
-    {noreply, State};
-handle_info({http, {_RequestId, {_StatusCode, Body}}}, State) ->
+    {noreply, State#state{requestIDs = lists:delete(RequestId, ReqIDs)}};
+handle_info({http, {RequestId, {_StatusCode, Body}}},
+            #state{requestIDs = ReqIDs} = State) ->
     OCSPResponse = 'OTP-PUB-KEY':decode('OCSPResponse', Body),
     %% debug
     io:format("ocsp response: ~p~n", [OCSPResponse]),
-    {noreply, State};
+    {noreply, State#state{requestIDs = lists:delete(RequestId, ReqIDs)}};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -200,7 +201,7 @@ stop_inets(#state{is_inets_already_started = false}) ->
 stop_inets(_State) ->
     ok.
 
-assemble_ocsp_request(Certs, CAChain) when is_list(Certs) ->
+create_ocsp_request(Certs, CAChain) when is_list(Certs) ->
     Requests =
         [get_request(get_certID(Cert, CAChain), ?EXT_NULL) || Cert <- Certs],
     TBSRequest = #'TBSRequest'{requestList = Requests},
