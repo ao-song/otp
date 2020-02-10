@@ -26,6 +26,7 @@
 
 %% API
 -export([create_ocsp_request/2]).
+-export([check_ocsp_response/1]).
 
 %% type
 -type cert()    :: binary() | #'OTPCertificate'{} | #'OTPTBSCertificate'{}.
@@ -38,22 +39,45 @@
 %%% API
 %%%===================================================================
 
-%%--------------------------------------------------------------------
-%% @doc
-%% Create an OCSP request.
-%%
-%% @spec create_ocsp_request(cert(), cachain()) -> {ok, binary()} |
-%%                                                 {error, term()}.
-%% @end
-%%--------------------------------------------------------------------
-- spec create_ocsp_request(cert(), cachain()) -> {ok, binary()} |
-                                                 {error, term()}.
+-spec create_ocsp_request(cert(), cachain()) -> {ok, binary()} |
+                                                {error, term()}.
 create_ocsp_request(Certs, CAChain) when is_list(Certs) ->
     Requests =
         [create_request(get_certID(Cert, CAChain), ?EXT_NULL) || Cert <- Certs],
     TBSRequest = #'TBSRequest'{requestList = Requests},
     'OTP-PUB-KEY':encode(
         'OCSPRequest', #'OCSPRequest'{tbsRequest = TBSRequest}).
+
+
+% -spec check_ocsp_response(Body :: binary()) -> ok.
+check_ocsp_response(HTTPBody) ->
+    {ok, OCSPResponse} = 'OTP-PUB-KEY':decode('OCSPResponse', HTTPBody),
+    case OCSPResponse#'OCSPResponse'.responseStatus of
+        successful ->
+            handle_response(OCSPResponse#'OCSPResponse'.responseBytes);
+        Error ->
+            {error, Error}
+    end.
+
+handle_response(#'ResponseBytes'{responseType = ?'id-pkix-ocsp-basic',
+                                 response  = Data}) ->
+    #'BasicOCSPResponse'{
+        tbsResponseData = ResponseData
+    } = 'OTP-PUB-KEY':decode('BasicOCSPResponse', Data),
+
+    #'ResponseData'{
+        responses = Responses
+    } = ResponseData,
+
+    verify_signature(),
+
+    [{R#'SingleResponse'.certID, R#'SingleResponse'.certStatus}
+     || R <- Responses];
+handle_response(#'ResponseBytes'{responseType = RespType}) ->
+    {error, response_type_not_supported, RespType}.
+
+%% todo
+verify_signature() -> ok.
 
 %%%===================================================================
 %%% Internal functions
