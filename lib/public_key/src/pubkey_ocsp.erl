@@ -59,6 +59,11 @@ check_ocsp_response(HTTPBody) ->
             {error, Error}
     end.
 
+
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
+
 handle_response(#'ResponseBytes'{responseType = ?'id-pkix-ocsp-basic',
                                  response  = Data}) ->
     #'BasicOCSPResponse'{
@@ -78,10 +83,6 @@ handle_response(#'ResponseBytes'{responseType = RespType}) ->
 
 %% todo
 verify_signature() -> ok.
-
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
 
 -spec create_request(#'CertID'{}, [#'Extension'{}]) -> #'Request'{}.
 create_request(CertID, ?EXT_NULL) ->
