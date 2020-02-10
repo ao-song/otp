@@ -24,31 +24,15 @@
 
 -include("public_key.hrl").
 
--behaviour(gen_server).
-
 %% API
--export([start_link/0]).
--export([validate_cert/3]).
-
-%% gen_server callbacks
--export([init/1,
-         handle_call/3,
-         handle_cast/2,
-         handle_info/2,
-         terminate/2,
-         code_change/3]).
+-export([create_ocsp_request/2]).
 
 %% type
+-type cert()    :: binary() | #'OTPCertificate'{} | #'OTPTBSCertificate'{}.
+-type cachain() :: [binary()] | [#'Certificate'{}] | [#'OTPCertificate'{}].
 
-
--define(SERVER, ?MODULE).
 -define(DER_NULL, <<5, 0>>).
 -define(EXT_NULL, null).
-
--record(state, {
-    is_inets_already_started = false,
-    requestIDs = []
-}).
 
 %%%===================================================================
 %%% API
@@ -56,169 +40,37 @@
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Starts the server
+%% Create an OCSP request.
 %%
-%% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
+%% @spec create_ocsp_request(cert(), cachain()) -> {ok, binary()} |
+%%                                                 {error, term()}.
 %% @end
 %%--------------------------------------------------------------------
-start_link() ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Check the status of a cert.
-%%
-%% @spec validate_cert(Cert, ResponderURL) -> ok
-%% @end
-%%--------------------------------------------------------------------
-validate_cert(ResponderURL, Certs, CAChain) when is_list(Certs) ->
-    gen_server:cast({validate_cert, ResponderURL, Certs, CAChain}).
-
-%%%===================================================================
-%%% gen_server callbacks
-%%%===================================================================
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Initializes the server
-%%
-%% @spec init(Args) -> {ok, State} |
-%%                     {ok, State, Timeout} |
-%%                     ignore |
-%%                     {stop, Reason}
-%% @end
-%%--------------------------------------------------------------------
-init([]) ->
-    case inets:start() of
-        ok ->
-            {ok, #state{}};
-        {error, {already_started, inets}} ->
-            {ok, #state{is_inets_already_started = true}};
-        {error, Reason} ->
-            {stop, Reason}
-    end.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Handling call messages
-%%
-%% @spec handle_call(Request, From, State) ->
-%%                                   {reply, Reply, State} |
-%%                                   {reply, Reply, State, Timeout} |
-%%                                   {noreply, State} |
-%%                                   {noreply, State, Timeout} |
-%%                                   {stop, Reason, Reply, State} |
-%%                                   {stop, Reason, State}
-%% @end
-%%--------------------------------------------------------------------
-handle_call(_Request, _From, State) ->
-    Reply = ok,
-    {reply, Reply, State}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Handling cast messages
-%%
-%% @spec handle_cast(Msg, State) -> {noreply, State} |
-%%                                  {noreply, State, Timeout} |
-%%                                  {stop, Reason, State}
-%% @end
-%%--------------------------------------------------------------------
-handle_cast({validate_cert, ResponderURL, Certs, CAChain},
-            #state{requestIDs = ReqIDs} = State) ->
-    Request = create_ocsp_request(Certs, CAChain),
-    {ok, RequestId} = httpc:request(
-        post, {ResponderURL, [], "application/ocsp-request", Request},
-        [], [{stream, none}, {sync, false}, {receiver, self()}]),
-    {noreply, State#state{requestIDs = [RequestId | ReqIDs]}};
-handle_cast(_Msg, State) ->
-    {noreply, State}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Handling all non call/cast messages
-%%
-%% @spec handle_info(Info, State) -> {noreply, State} |
-%%                                   {noreply, State, Timeout} |
-%%                                   {stop, Reason, State}
-%% @end
-%%--------------------------------------------------------------------
-handle_info({http, {RequestId, {error, Reason}}},
-            #state{requestIDs = ReqIDs} = State) ->
-    %% debug
-    io:format("httpc response error: ~p~n", [Reason]),
-    {noreply, State#state{requestIDs = lists:delete(RequestId, ReqIDs)}};
-handle_info({http, {RequestId, {_StatusLine, _Headers, Body}}},
-            #state{requestIDs = ReqIDs} = State) ->
-    OCSPResponse = 'OTP-PUB-KEY':decode('OCSPResponse', Body),
-    %% debug
-    io:format("ocsp response: ~p~n", [OCSPResponse]),
-    {noreply, State#state{requestIDs = lists:delete(RequestId, ReqIDs)}};
-handle_info({http, {RequestId, {_StatusCode, Body}}},
-            #state{requestIDs = ReqIDs} = State) ->
-    OCSPResponse = 'OTP-PUB-KEY':decode('OCSPResponse', Body),
-    %% debug
-    io:format("ocsp response: ~p~n", [OCSPResponse]),
-    {noreply, State#state{requestIDs = lists:delete(RequestId, ReqIDs)}};
-handle_info(_Info, State) ->
-    {noreply, State}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any
-%% necessary cleaning up. When it returns, the gen_server terminates
-%% with Reason. The return value is ignored.
-%%
-%% @spec terminate(Reason, State) -> void()
-%% @end
-%%--------------------------------------------------------------------
-terminate(_Reason, State) ->
-    stop_inets(State),
-    ok.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Convert process state when code is changed
-%%
-%% @spec code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% @end
-%%--------------------------------------------------------------------
-code_change(_OldVsn, State, _Extra) ->
-        {ok, State}.
-
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
-stop_inets(#state{is_inets_already_started = false}) ->
-    inets:stop();
-stop_inets(_State) ->
-    ok.
-
+- spec create_ocsp_request(cert(), cachain()) -> {ok, binary()} |
+                                                 {error, term()}.
 create_ocsp_request(Certs, CAChain) when is_list(Certs) ->
     Requests =
-        [get_request(get_certID(Cert, CAChain), ?EXT_NULL) || Cert <- Certs],
+        [create_request(get_certID(Cert, CAChain), ?EXT_NULL) || Cert <- Certs],
     TBSRequest = #'TBSRequest'{requestList = Requests},
     'OTP-PUB-KEY':encode(
         'OCSPRequest', #'OCSPRequest'{tbsRequest = TBSRequest}).
 
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
 
-get_request(CertID, ?EXT_NULL) ->
+-spec create_request(#'CertID'{}, [#'Extension'{}]) -> #'Request'{}.
+create_request(CertID, ?EXT_NULL) ->
     #'Request'{
         reqCert = CertID
     };
-get_request(CertID, Exts) ->
+create_request(CertID, Exts) ->
     #'Request'{
         reqCert = CertID,
         singleRequestExtensions = Exts
     }.
 
+-spec get_certID(cert(), cachain()) -> #'CertID'{}.
 get_certID(Cert, CAChain) ->
     #'CertID'{
         hashAlgorithm = get_hash_algorithm(),
@@ -228,22 +80,25 @@ get_certID(Cert, CAChain) ->
         serialNumber = get_serial_num(Cert)
     }.
 
+-spec get_issuer_name(cert()) -> string().
 get_issuer_name(Cert) ->
     #'OTPCertificate'{tbsCertificate = TbsCert} = otp_cert(Cert),
     TbsCert#'OTPTBSCertificate'.issuer.
 
+-spec get_public_key(cert()) -> string().
 get_public_key(Cert) ->
     #'OTPCertificate'{tbsCertificate = TbsCert} = otp_cert(Cert),
     PKInfo = TbsCert#'OTPTBSCertificate'.subjectPublicKeyInfo,
     PKInfo#'SubjectPublicKeyInfo'.subjectPublicKey.
 
+-spec get_issuer_cert(cert(), cachain()) -> cert() | {error, issuer_not_found}.
 %% self-signed?
 get_issuer_cert(Cert, []) ->
     case public_key:pkix_is_self_signed(Cert) of
         true ->
             Cert;
         false ->
-            undefined
+            {error, issuer_not_found}
     end;
 get_issuer_cert(Cert, [IssuerCert | Chain]) ->
     case public_key:pkix_is_issuer(Cert, IssuerCert) of
@@ -253,23 +108,28 @@ get_issuer_cert(Cert, [IssuerCert | Chain]) ->
             get_issuer_cert(Cert, Chain)
     end.
 
+-spec get_hash_algorithm() -> #'AlgorithmIdentifier'{}.
 get_hash_algorithm() ->
     #'AlgorithmIdentifier'{
         algorithm = ?'id-sha512',
         parameters = ?DER_NULL
     }.
 
+-spec get_issuer_name_hash(Issuer :: string()) -> Digest :: binary().
 get_issuer_name_hash(Issuer) ->
     crypto:hash(sha512, public_key:pkix_encode('Name', Issuer, otp)).
 
+-spec get_issuer_key_hash(Key :: string()) -> Digest :: binary().
 get_issuer_key_hash(Key) ->
     crypto:hash(sha512, Key).
 
+-spec get_serial_num(cert()) -> SerialNumber :: string().
 get_serial_num(Cert) ->
     #'OTPCertificate'{tbsCertificate = TbsCert} = otp_cert(Cert),
     TbsCert#'OTPTBSCertificate'.serialNumber.
 
+-spec otp_cert(cert()) -> #'OTPCertificate'{}.
 otp_cert(Cert) when is_binary(Cert) ->
-    public_key:pkix_decode_cert(Cert, plain);
+    public_key:pkix_decode_cert(Cert, otp);
 otp_cert(#'OTPCertificate'{} = Cert) ->
     Cert.
