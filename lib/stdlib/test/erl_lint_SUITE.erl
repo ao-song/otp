@@ -469,7 +469,6 @@ unused_vars_warn_lc(Config) when is_list(Config) ->
            ">>,
            [warn_unused_vars],
            {warnings,[{6,erl_lint,{unused_var,'C1'}},
-		      {7,sys_core_fold,no_clause_match},
                       {9,erl_lint,{unused_var,'C3'}}]}},
 
           {lc21,
@@ -1298,6 +1297,10 @@ unsized_binary_in_bin_gen_pattern(Config) when is_list(Config) ->
 		  << <<X,Tail/bits>> || <<X,Tail/bits>> <= Bin >>;
 	      t({bc,bitstring,Bin}) ->
 		  << <<X,Tail/bits>> || <<X,Tail/bitstring>> <= Bin >>;
+              t({bc,binary_lit,Bin}) ->
+		  << <<X>> || <<X,1/binary>> <= Bin >>;
+	      t({bc,bytes_lit,Bin}) ->
+		  << <<X>> || <<X,a/bytes>> <= Bin >>;
 	      t({lc,binary,Bin}) ->
 		  [ {X,Tail} || <<X,Tail/binary>> <= Bin ];
 	      t({lc,bytes,Bin}) ->
@@ -1305,17 +1308,25 @@ unsized_binary_in_bin_gen_pattern(Config) when is_list(Config) ->
 	      t({lc,bits,Bin}) ->
 		  [ {X,Tail} || <<X,Tail/bits>> <= Bin ];
 	      t({lc,bitstring,Bin}) ->
-		  [ {X,Tail} || <<X,Tail/bitstring>> <= Bin ].">>,
+		  [ {X,Tail} || <<X,Tail/bitstring>> <= Bin ];
+              t({lc,bits_lit,Bin}) ->
+		  [ X || <<X,42/bits>> <= Bin ];
+	      t({lc,bitstring_lit,Bin}) ->
+		  [ X || <<X,b/bitstring>> <= Bin ].">>,
 	   [],
 	   {errors,
 	    [{2,erl_lint,unsized_binary_in_bin_gen_pattern},
 	     {4,erl_lint,unsized_binary_in_bin_gen_pattern},
 	     {6,erl_lint,unsized_binary_in_bin_gen_pattern},
 	     {8,erl_lint,unsized_binary_in_bin_gen_pattern},
-	     {10,erl_lint,unsized_binary_in_bin_gen_pattern},
-	     {12,erl_lint,unsized_binary_in_bin_gen_pattern},
-	     {14,erl_lint,unsized_binary_in_bin_gen_pattern},
-	     {16,erl_lint,unsized_binary_in_bin_gen_pattern}],
+             {10,erl_lint,unsized_binary_in_bin_gen_pattern},
+             {12,erl_lint,unsized_binary_in_bin_gen_pattern},
+             {14,erl_lint,unsized_binary_in_bin_gen_pattern},
+             {16,erl_lint,unsized_binary_in_bin_gen_pattern},
+	     {18,erl_lint,unsized_binary_in_bin_gen_pattern},
+	     {20,erl_lint,unsized_binary_in_bin_gen_pattern},
+	     {22,erl_lint,unsized_binary_in_bin_gen_pattern},
+	     {24,erl_lint,unsized_binary_in_bin_gen_pattern}],
 	     []}}],
     [] = run(Config, Ts),
     ok.
@@ -3645,6 +3656,7 @@ bin_syntax_errors(Config) ->
     Ts = [{bin_syntax_errors,
 	   <<"t(<<X:bad_size>>) -> X;
 	      t(<<_:(x ! y)/integer>>) -> ok;
+	      t(<<_:(l())/integer>>) -> ok;
               t(<<X:all/integer>>) -> X;
               t(<<X/bad_type>>) -> X;
 	      t(<<X/unit:8>>) -> X;
@@ -3653,22 +3665,30 @@ bin_syntax_errors(Config) ->
 	      t(<<(x ! y):8/integer>>) -> ok;
               t(X) ->
                 {<<X/binary-integer>>,<<X/signed-unsigned-integer>>,
-                 <<X/little-big>>,<<X/unit:4-unit:8>>}.
+                 <<X/little-big>>,<<X/unit:4-unit:8>>};
+              t(<<_:{A,B}>>) -> ok.
+
+              l() ->
+                  foo.
 	    ">>,
 	   [],
-	   {error,[{1,erl_lint,illegal_bitsize},
-		   {2,erl_lint,illegal_bitsize},
-		   {3,erl_lint,illegal_bitsize},
-		   {4,erl_lint,{undefined_bittype,bad_type}},
-		   {5,erl_lint,bittype_unit},
-		   {7,erl_lint,illegal_pattern},
+	   {error,[{2,erl_lint,illegal_bitsize},
+		   {3,erl_lint,{illegal_bitsize_local_call,{l,0}}},
+		   {5,erl_lint,{undefined_bittype,bad_type}},
+		   {6,erl_lint,bittype_unit},
 		   {8,erl_lint,illegal_pattern},
-		   {10,erl_lint,{bittype_mismatch,integer,binary,"type"}},
-		   {10,erl_lint,{bittype_mismatch,unsigned,signed,"sign"}},
-		   {11,erl_lint,{bittype_mismatch,8,4,"unit"}},
-		   {11,erl_lint,{bittype_mismatch,big,little,"endianness"}}
+		   {9,erl_lint,illegal_pattern},
+		   {11,erl_lint,{bittype_mismatch,integer,binary,"type"}},
+		   {11,erl_lint,{bittype_mismatch,unsigned,signed,"sign"}},
+		   {12,erl_lint,{bittype_mismatch,8,4,"unit"}},
+		   {12,erl_lint,{bittype_mismatch,big,little,"endianness"}},
+                   {13,erl_lint,{unbound_var,'A'}},
+                   {13,erl_lint,{unbound_var,'B'}}
 		  ],
-	    [{6,erl_lint,{bad_bitsize,"float"}}]}}
+	    [{1,erl_lint,non_integer_bitsize},
+             {4,erl_lint,non_integer_bitsize},
+             {7,erl_lint,{bad_bitsize,"float"}},
+             {13,erl_lint,non_integer_bitsize}]}}
 	 ],
     [] = run(Config, Ts),
     ok.
@@ -3779,7 +3799,7 @@ maps(Config) ->
 	   ">>,
 	   [],
 	   {errors,[{4,erl_lint,illegal_map_construction},
-                    {6,erl_lint,illegal_map_key}],[]}},
+                    {6,erl_lint,{unbound_var,'V'}}],[]}},
           {unused_vars_with_empty_maps,
            <<"t(Foo, Bar, Baz) -> {#{},#{}}.">>,
            [warn_unused_variables],

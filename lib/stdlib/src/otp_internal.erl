@@ -44,6 +44,38 @@ obsolete(Module, Name, Arity) ->
 	    no
     end.
 
+%% *** kernel added in OTP 23 ***
+
+obsolete_1(pg2, F, A) ->
+    IsFun = case {F, A} of
+                {create, 1} -> true;
+                {delete, 1} -> true;
+                {join, 2} -> true;
+                {leave, 2} -> true;
+                {get_members, 1} -> true;
+                {get_local_members, 1} -> true;
+                {get_closest_pid, 1} -> true;
+                {which_groups, 1} -> true;
+                {start, 0} -> true;
+                {start_link, 0} -> true;
+                {init, 1} -> true;
+                {handle_call, 3} -> true;
+                {handle_cast, 2} -> true;
+                {handle_info, 2} -> true;
+                {terminate, 2} -> true;
+                _ -> false
+            end,
+    
+    {deprecated,
+     if IsFun == true -> "";
+        true ->
+             "(unknown function) however, "
+     end
+     ++ "the module pg2 is deprecated and scheduled "
+     ++ "for removal in OTP 24; use pg instead"};
+
+%% ***
+
 obsolete_1(net, call, 4) ->
     {deprecated, {rpc, call, 4}};
 obsolete_1(net, cast, 4) ->
