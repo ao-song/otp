@@ -84,8 +84,8 @@ validate_cert(Config) when is_list(Config) ->
     %% Url = "http://127.0.0.1:8080"
 
     Url = ?DEFAULT_URL,
-    Cert = ?USER_CERT,
-    CACert = ?ROOT_CA_CERT,
+    Cert = file:read_file(?USER_CERT),
+    CACert = file:read_file(?ROOT_CA_CERT),
     [_CertID, good] =
     pubkey_ocsp:validate_certs([Cert], [CACert], Url).
 
