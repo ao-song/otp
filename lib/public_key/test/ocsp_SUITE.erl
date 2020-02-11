@@ -18,7 +18,7 @@
 %% %CopyrightEnd%
 %%
 
--module(pbe_SUITE).
+-module(ocsp_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("public_key/include/public_key.hrl").
