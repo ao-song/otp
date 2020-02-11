@@ -25,6 +25,7 @@
 -include("public_key.hrl").
 
 %% API
+-export([validate_certs/3]).
 -export([create_ocsp_request/2]).
 -export([check_ocsp_response/1]).
 
@@ -39,6 +40,19 @@
 %%% API
 %%%===================================================================
 
+validate_certs(Certs, CAChain, Url) when is_list(Certs) ->
+    case ensure_inets() of
+        ok ->
+            Request = create_ocsp_request(Certs, CAChain),
+            Response = httpc:request(
+                post, {Url, [], "application/ocsp-request", Request},
+                [], []),
+            check_ocsp_response(Response);
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
+
 -spec create_ocsp_request(cert(), cachain()) -> {ok, binary()} |
                                                 {error, term()}.
 create_ocsp_request(Certs, CAChain) when is_list(Certs) ->
@@ -50,22 +64,50 @@ create_ocsp_request(Certs, CAChain) when is_list(Certs) ->
 
 
 % -spec check_ocsp_response(Body :: binary()) -> ok.
-check_ocsp_response(HTTPBody) ->
-    {ok, OCSPResponse} = 'OTP-PUB-KEY':decode('OCSPResponse', HTTPBody),
-    case OCSPResponse#'OCSPResponse'.responseStatus of
-        successful ->
-            handle_response(OCSPResponse#'OCSPResponse'.responseBytes);
-        Error ->
-            {error, Error}
+check_ocsp_response(HTTPResponse) ->
+    case get_http_body(HTTPResponse) of
+        {ok, Body} ->
+            handle_response(Body);
+        {error, Reason} ->
+            {error, Reason}
     end.
 
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+ensure_inets() ->
+    case inets:start() of
+        ok ->
+            ok;
+        {error, {already_started, inets}} ->
+            ok;
+        {error, Reason} ->
+            {stop, Reason}
+    end.
 
-handle_response(#'ResponseBytes'{responseType = ?'id-pkix-ocsp-basic',
-                                 response  = Data}) ->
+-spec get_http_body(HTTPResponse :: tuple()) -> {ok, HTTPBody :: term()} |
+                                                {error, term()}.
+get_http_body({ok, {_StatusLine, _Headers, Body}}) ->
+    {ok, Body};
+get_http_body({ok, {_StatusCode, Body}}) ->
+    {ok, Body};
+get_http_body({error, Reason}) ->
+    {error, Reason}.
+
+handle_response(HTTPBody) ->
+    {ok, OCSPResponse} = 'OTP-PUB-KEY':decode('OCSPResponse', HTTPBody),
+    case OCSPResponse#'OCSPResponse'.responseStatus of
+        successful ->
+            handle_response_bytes(
+                OCSPResponse#'OCSPResponse'.responseBytes);
+        Error ->
+            {error, Error}
+    end.
+
+handle_response_bytes(#'ResponseBytes'{
+                          responseType = ?'id-pkix-ocsp-basic',
+                          response  = Data}) ->
     #'BasicOCSPResponse'{
         tbsResponseData = ResponseData
     } = 'OTP-PUB-KEY':decode('BasicOCSPResponse', Data),
@@ -78,8 +120,9 @@ handle_response(#'ResponseBytes'{responseType = ?'id-pkix-ocsp-basic',
 
     [{R#'SingleResponse'.certID, R#'SingleResponse'.certStatus}
      || R <- Responses];
-handle_response(#'ResponseBytes'{responseType = RespType}) ->
+handle_response_bytes(#'ResponseBytes'{responseType = RespType}) ->
     {error, response_type_not_supported, RespType}.
+
 
 %% todo
 verify_signature() -> ok.
