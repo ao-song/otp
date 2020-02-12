@@ -31,7 +31,7 @@
 
 %% type
 -type cert()    :: binary() | #'OTPCertificate'{} | #'OTPTBSCertificate'{}.
--type cachain() :: [binary()] | [#'Certificate'{}] | [#'OTPCertificate'{}].
+-type cachain() :: [binary()] | [#'OTPCertificate'{}] | [#'OTPCertificate'{}].
 
 -define(DER_NULL, <<5, 0>>).
 -define(EXT_NULL, null).
@@ -183,11 +183,11 @@ get_hash_algorithm() ->
         parameters = ?DER_NULL
     }.
 
--spec get_issuer_name_hash(Issuer :: string()) -> Digest :: binary().
+-spec get_issuer_name_hash(Issuer :: term()) -> Digest :: binary().
 get_issuer_name_hash(Issuer) ->
     crypto:hash(sha512, public_key:pkix_encode('Name', Issuer, otp)).
 
--spec get_issuer_key_hash(Key :: string()) -> Digest :: binary().
+-spec get_issuer_key_hash(Key :: term()) -> Digest :: binary().
 get_issuer_key_hash(Key) ->
     crypto:hash(sha512, Key).
 

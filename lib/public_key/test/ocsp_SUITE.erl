@@ -23,15 +23,15 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("public_key/include/public_key.hrl").
 
--define(DEFAULT_URL, "http://127.0.0.1:8080").
--define(USER_CERT, "ocsp_SUITE_data/users/rootCAsigned/cert.crt").
--define(ROOT_CA_CERT, "ocsp_SUITE_data/CA/cert/rootCA.crt").
--define(OCSP_SERVER_CMD,
-        "openssl ocsp -index ocsp_SUITE_data/CA/index.txt -port 8080"
-        " -rsigner ocsp_SUITE_data/CA/ocsp/ocspSigning.crt "
-        "-rkey ocsp_SUITE_data/CA/ocsp/ocspSigning.key "
-        "-CA ocsp_SUITE_data/CA/cert/rootCA.crt"
-        " -text -out ocsp_SUITE_data/log.txt &").
+-define(DEFAULT_URL,  "http://127.0.0.1:8080").
+-define(USER_CERT,    "users/rootCAsigned/cert.crt").
+-define(ROOT_CA_CERT, "CA/cert/rootCA.crt").
+
+%% OCSP server flags
+-define(INDEX,   "CA/index.txt").
+-define(RSIGNER, "CA/ocsp/ocspSigning.crt").
+-define(RKEY,    "CA/ocsp/ocspSigning.key").
+-define(TEXT,    "log.txt").
 
 %% Note: This directive should only be used in test suites.
 -compile(export_all).
@@ -52,7 +52,13 @@ groups() ->
 %%--------------------------------------------------------------------
 init_per_suite(Config) ->
     inets:start(),
-    [{ocsp_port, port_open(?OCSP_SERVER_CMD)} | Config].
+    Cmd = start_ocsp_server(
+        get_file(?INDEX, Config),
+        get_file(?RSIGNER, Config),
+        get_file(?RKEY, Config),
+        get_file(?ROOT_CA_CERT, Config),
+        get_file(?TEXT, Config)),
+    [{ocsp_port, port_open(Cmd)} | Config].
 
 end_per_suite(Config) ->
     port_close(?config(ocsp_port, Config)),
@@ -84,10 +90,10 @@ validate_cert(Config) when is_list(Config) ->
     %% Url = "http://127.0.0.1:8080"
 
     Url = ?DEFAULT_URL,
-    Cert = file:read_file(?USER_CERT),
-    CACert = file:read_file(?ROOT_CA_CERT),
+    {ok, Cert}   = file:read_file(get_file(?USER_CERT, Config)),
+    {ok, CACert} = file:read_file(get_file(?ROOT_CA_CERT, Config)),
     [_CertID, good] =
-        pubkey_ocsp:validate_certs([Cert], [CACert], Url).
+        pubkey_ocsp:validate_certs(decode_pem(Cert), decode_pem(CACert), Url).
 
 
 %%--------------------------------------------------------------------
@@ -95,6 +101,25 @@ validate_cert(Config) when is_list(Config) ->
 %%--------------------------------------------------------------------
 port_open(Cmd) ->
     open_port({spawn, Cmd}, [exit_status]).
+
+get_file(FileName, Config) ->
+    Datadir = ?config(data_dir, Config),
+    filename:join(Datadir, FileName).
+
+start_ocsp_server(Index, Rsigner, Rkey, CACert, Text) ->
+    "openssl ocsp -index " ++ Index ++
+    " -port 8080" ++
+    " -rsigner " ++ Rsigner ++
+    " -rkey " ++ Rkey ++
+    " -CA " ++ CACert ++
+    " -text -out " ++ Text ++
+    " &".
+
+decode_pem(Data) ->
+    [public_key:pkix_decode_cert(Der, otp) ||
+     {'Certificate', Der, _IsEncrypted} <- public_key:pem_decode(Data)].
+
+
 
 
 %% server: openssl ocsp -index ocsp_SUITE_data/CA/index.txt -port 8080 -rsigner ocsp_SUITE_data/CA/ocsp/ocspSigning.crt -rkey ocsp_SUITE_data/CA/ocsp/ocspSigning.key -CA ocsp_SUITE_data/CA/cert/rootCA.crt -text -out log.txt &
