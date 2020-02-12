@@ -87,7 +87,7 @@ validate_cert(Config) when is_list(Config) ->
     Cert = file:read_file(?USER_CERT),
     CACert = file:read_file(?ROOT_CA_CERT),
     [_CertID, good] =
-    pubkey_ocsp:validate_certs([Cert], [CACert], Url).
+        pubkey_ocsp:validate_certs([Cert], [CACert], Url).
 
 
 %%--------------------------------------------------------------------
@@ -97,5 +97,5 @@ port_open(Cmd) ->
     open_port({spawn, Cmd}, [exit_status]).
 
 
-%% server: openssl ocsp -index CA/index.txt -port 8080 -rsigner CA/ocsp/ocspSigning.crt -rkey CA/ocsp/ocspSigning.key -CA CA/cert/rootCA.crt -text -out log.txt &
-%% client: openssl ocsp -CAfile CA/cert/rootCA.crt -issuer CA/cert/rootCA.crt -cert users/rootCAsigned/cert.crt -url http://127.0.0.1:8080 -resp_text -noverify
+%% server: openssl ocsp -index ocsp_SUITE_data/CA/index.txt -port 8080 -rsigner ocsp_SUITE_data/CA/ocsp/ocspSigning.crt -rkey ocsp_SUITE_data/CA/ocsp/ocspSigning.key -CA ocsp_SUITE_data/CA/cert/rootCA.crt -text -out log.txt &
+%% client: openssl ocsp -CAfile ocsp_SUITE_data/CA/cert/rootCA.crt -issuer ocsp_SUITE_data/CA/cert/rootCA.crt -cert ocsp_SUITE_data/users/rootCAsigned/cert.crt -url http://127.0.0.1:8080 -resp_text -noverify
