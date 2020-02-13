@@ -25,7 +25,7 @@
 -include("public_key.hrl").
 
 %% API
--export([validate_certs/3]).
+-export([validate_certs/3]). % to be moved to somewhere in ssl sometime later
 -export([create_ocsp_request/2]).
 -export([check_ocsp_response/1]).
 
@@ -40,6 +40,7 @@
 %%% API
 %%%===================================================================
 
+%% to be moved to somewhere in ssl sometime later
 validate_certs(Certs, CAChain, Url) when is_list(Certs) ->
     case ensure_inets() of
         ok ->
@@ -76,6 +77,8 @@ check_ocsp_response(HTTPResponse) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%% to be moved to somewhere in ssl sometime later
 ensure_inets() ->
     case inets:start() of
         ok ->
