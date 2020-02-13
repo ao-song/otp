@@ -31,7 +31,7 @@
 
 %% type
 -type cert()    :: binary() | #'OTPCertificate'{} | #'OTPTBSCertificate'{}.
--type cachain() :: [binary()] | [#'OTPCertificate'{}] | [#'OTPCertificate'{}].
+-type cachain() :: [binary()] | [#'OTPCertificate'{}].
 
 -define(DER_NULL, <<5, 0>>).
 -define(EXT_NULL, null).
@@ -58,7 +58,8 @@ validate_certs(Certs, CAChain, Url) when is_list(Certs) ->
                                                 {error, term()}.
 create_ocsp_request(Certs, CAChain) when is_list(Certs) ->
     Requests =
-        [create_request(get_certID(Cert, CAChain), ?EXT_NULL) || Cert <- Certs],
+        [create_request(create_certID(Cert, CAChain), ?EXT_NULL) ||
+         Cert <- Certs],
     TBSRequest = #'TBSRequest'{requestList = Requests},
     'OTP-PUB-KEY':encode(
         'OCSPRequest', #'OCSPRequest'{tbsRequest = TBSRequest}).
@@ -141,13 +142,13 @@ create_request(CertID, Exts) ->
         singleRequestExtensions = Exts
     }.
 
--spec get_certID(cert(), cachain()) -> #'CertID'{}.
-get_certID(Cert, CAChain) ->
+-spec create_certID(cert(), cachain()) -> #'CertID'{}.
+create_certID(Cert, CAChain) ->
     #'CertID'{
         hashAlgorithm = get_hash_algorithm(),
-        issuerNameHash = get_issuer_name_hash(get_issuer_name(Cert)),
+        issuerNameHash = hash_issuer_name(get_issuer_name(Cert)),
         issuerKeyHash =
-            get_issuer_key_hash(get_public_key(get_issuer_cert(Cert, CAChain))),
+            hash_issuer_key(get_public_key(get_issuer_cert(Cert, CAChain))),
         serialNumber = get_serial_num(Cert)
     }.
 
@@ -186,12 +187,12 @@ get_hash_algorithm() ->
         parameters = ?DER_NULL
     }.
 
--spec get_issuer_name_hash(Issuer :: term()) -> Digest :: binary().
-get_issuer_name_hash(Issuer) ->
+-spec hash_issuer_name(Issuer :: term()) -> Digest :: binary().
+hash_issuer_name(Issuer) ->
     crypto:hash(sha512, public_key:pkix_encode('Name', Issuer, otp)).
 
--spec get_issuer_key_hash(Key :: term()) -> Digest :: binary().
-get_issuer_key_hash(Key) ->
+-spec hash_issuer_key(Key :: term()) -> Digest :: binary().
+hash_issuer_key(Key) ->
     crypto:hash(sha512, Key).
 
 -spec get_serial_num(cert()) -> SerialNumber :: string().
