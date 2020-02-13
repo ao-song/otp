@@ -61,8 +61,9 @@ create_ocsp_request(Certs, CAChain) when is_list(Certs) ->
         [create_request(create_certID(Cert, CAChain), ?EXT_NULL) ||
          Cert <- Certs],
     TBSRequest = #'TBSRequest'{requestList = Requests},
-    'OTP-PUB-KEY':encode(
-        'OCSPRequest', #'OCSPRequest'{tbsRequest = TBSRequest}).
+    {ok, Bytes} = 'OTP-PUB-KEY':encode(
+        'OCSPRequest', #'OCSPRequest'{tbsRequest = TBSRequest}),
+    Bytes.
 
 
 % -spec check_ocsp_response(Body :: binary()) -> ok.
@@ -111,10 +112,10 @@ handle_response(HTTPBody) ->
 
 handle_response_bytes(#'ResponseBytes'{
                           responseType = ?'id-pkix-ocsp-basic',
-                          response  = Data}) ->
-    #'BasicOCSPResponse'{
+                          response = Data}) ->
+    {ok, #'BasicOCSPResponse'{
         tbsResponseData = ResponseData
-    } = 'OTP-PUB-KEY':decode('BasicOCSPResponse', Data),
+    }} = 'OTP-PUB-KEY':decode('BasicOCSPResponse', Data),
 
     #'ResponseData'{
         responses = Responses
@@ -155,13 +156,17 @@ create_certID(Cert, CAChain) ->
 -spec get_issuer_name(cert()) -> string().
 get_issuer_name(Cert) ->
     #'OTPCertificate'{tbsCertificate = TbsCert} = otp_cert(Cert),
-    TbsCert#'OTPTBSCertificate'.issuer.
+    public_key:pkix_encode('Name', TbsCert#'OTPTBSCertificate'.issuer, otp).
 
 -spec get_public_key(cert()) -> string().
 get_public_key(Cert) ->
     #'OTPCertificate'{tbsCertificate = TbsCert} = otp_cert(Cert),
     PKInfo = TbsCert#'OTPTBSCertificate'.subjectPublicKeyInfo,
-    PKInfo#'SubjectPublicKeyInfo'.subjectPublicKey.
+    public_key:pkix_encode(
+        pubkey_cert_records:supportedPublicKeyAlgorithms(
+            PKInfo#'OTPSubjectPublicKeyInfo'.algorithm#'PublicKeyAlgorithm'.algorithm),
+        PKInfo#'OTPSubjectPublicKeyInfo'.subjectPublicKey, otp
+    ).
 
 -spec get_issuer_cert(cert(), cachain()) -> cert() | {error, issuer_not_found}.
 %% self-signed?
@@ -187,9 +192,9 @@ get_hash_algorithm() ->
         parameters = ?DER_NULL
     }.
 
--spec hash_issuer_name(Issuer :: term()) -> Digest :: binary().
+-spec hash_issuer_name(Issuer :: binary()) -> Digest :: binary().
 hash_issuer_name(Issuer) ->
-    crypto:hash(sha512, public_key:pkix_encode('Name', Issuer, otp)).
+    crypto:hash(sha512, Issuer).
 
 -spec hash_issuer_key(Key :: term()) -> Digest :: binary().
 hash_issuer_key(Key) ->

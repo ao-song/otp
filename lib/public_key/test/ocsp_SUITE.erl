@@ -58,10 +58,11 @@ init_per_suite(Config) ->
         get_file(?RKEY, Config),
         get_file(?ROOT_CA_CERT, Config),
         get_file(?TEXT, Config)),
-    [{ocsp_port, port_open(Cmd)} | Config].
+    [{server_pid, port_open(Cmd)} | Config].
 
 end_per_suite(Config) ->
-    port_close(?config(ocsp_port, Config)),
+    Pid = ?config(server_pid, Config),
+    os:cmd(io_lib:format("kill -9 ~p", [Pid])),
     file:delete("ocsp_SUITE_data/log.txt"),
     inets:stop().
 
@@ -88,11 +89,10 @@ validate_cert() ->
     [{doc, "Validate a cert which is signed by rootCA."}].
 validate_cert(Config) when is_list(Config) ->
     %% Url = "http://127.0.0.1:8080"
-
     Url = ?DEFAULT_URL,
     {ok, Cert}   = file:read_file(get_file(?USER_CERT, Config)),
     {ok, CACert} = file:read_file(get_file(?ROOT_CA_CERT, Config)),
-    [_CertID, good] =
+    [{_CertID, {good, _StatusInfo}}] =
         pubkey_ocsp:validate_certs(decode_pem(Cert), decode_pem(CACert), Url).
 
 
@@ -100,7 +100,9 @@ validate_cert(Config) when is_list(Config) ->
 %% Intrernal functions -----------------------------------------------
 %%--------------------------------------------------------------------
 port_open(Cmd) ->
-    open_port({spawn, Cmd}, [exit_status]).
+    {os_pid, Pid} = erlang:port_info(
+        erlang:open_port({spawn, Cmd}, []), os_pid),
+    Pid.
 
 get_file(FileName, Config) ->
     Datadir = ?config(data_dir, Config),
@@ -112,8 +114,7 @@ start_ocsp_server(Index, Rsigner, Rkey, CACert, Text) ->
     " -rsigner " ++ Rsigner ++
     " -rkey " ++ Rkey ++
     " -CA " ++ CACert ++
-    " -text -out " ++ Text ++
-    " &".
+    " -text -out " ++ Text.
 
 decode_pem(Data) ->
     [public_key:pkix_decode_cert(Der, otp) ||
