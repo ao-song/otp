@@ -1,0 +1,41 @@
+Certificate Request:
+    Data:
+        Version: 1 (0x0)
+        Subject: C = SE, ST = Stockholm, L = Stockholm, O = Ericsson, OU = OTP, CN = OTP, emailAddress = andy@erlang.org
+        Subject Public Key Info:
+            Public Key Algorithm: rsaEncryption
+                RSA Public-Key: (1024 bit)
+                Modulus:
+                    00:d4:f4:e0:48:ff:99:e2:9d:f1:c7:91:d6:6e:53:
+                    e0:50:fb:d7:7c:81:4c:80:7d:53:bf:00:4a:88:dd:
+                    d9:9b:2a:1e:2b:07:56:d5:19:67:0c:49:32:aa:a1:
+                    96:c9:a7:76:a3:84:8a:b5:8d:37:9b:de:43:98:09:
+                    e6:60:1d:d9:11:45:f4:5f:95:41:c8:1d:31:52:1f:
+                    63:46:b6:d1:32:f0:77:44:69:ce:72:07:b7:fd:02:
+                    5a:ae:10:d3:f5:69:0e:d2:82:54:1e:e2:08:2d:7f:
+                    96:c2:99:f7:b2:84:41:38:92:16:a7:89:38:f9:41:
+                    7e:7b:10:4b:e8:62:65:c6:21
+                Exponent: 65537 (0x10001)
+        Attributes:
+            a0:00
+    Signature Algorithm: sha256WithRSAEncryption
+         a1:59:21:ad:04:67:c6:c7:5e:4a:7d:e9:00:16:2d:d6:29:1d:
+         7a:a5:0c:39:fd:e0:71:9d:e5:55:95:45:24:cb:51:78:e8:f0:
+         a4:63:3a:c2:25:98:17:0f:2a:ce:0e:f5:e5:94:94:f5:04:fd:
+         2f:4d:44:8c:42:83:21:1f:f2:1e:e5:ef:3e:0b:b0:9f:cd:86:
+         0f:95:98:fc:c2:d6:a3:98:14:6d:fa:09:3c:d5:94:16:c9:ae:
+         20:46:b2:d0:ea:0e:a6:fa:8e:1a:f0:40:d8:90:af:04:a2:37:
+         91:4d:ec:b8:54:e8:da:cc:a8:f4:8a:d8:06:4b:5c:97:eb:cc:
+         86:34
+-----BEGIN CERTIFICATE REQUEST-----
+MIIBxTCCAS4CAQAwgYQxCzAJBgNVBAYTAlNFMRIwEAYDVQQIDAlTdG9ja2hvbG0x
+EjAQBgNVBAcMCVN0b2NraG9sbTERMA8GA1UECgwIRXJpY3Nzb24xDDAKBgNVBAsM
+A09UUDEMMAoGA1UEAwwDT1RQMR4wHAYJKoZIhvcNAQkBFg9hbmR5QGVybGFuZy5v
+cmcwgZ8wDQYJKoZIhvcNAQEBBQADgY0AMIGJAoGBANT04Ej/meKd8ceR1m5T4FD7
+13yBTIB9U78ASojd2ZsqHisHVtUZZwxJMqqhlsmndqOEirWNN5veQ5gJ5mAd2RFF
+9F+VQcgdMVIfY0a20TLwd0RpznIHt/0CWq4Q0/VpDtKCVB7iCC1/lsKZ97KEQTiS
+FqeJOPlBfnsQS+hiZcYhAgMBAAGgADANBgkqhkiG9w0BAQsFAAOBgQChWSGtBGfG
+x15KfekAFi3WKR16pQw5/eBxneVVlUUky1F46PCkYzrCJZgXDyrODvXllJT1BP0v
+TUSMQoMhH/Ie5e8+C7CfzYYPlZj8wtajmBRt+gk81ZQWya4gRrLQ6g6m+o4a8EDY
+kK8EojeRTey4VOjazKj0itgGS1yX68yGNA==
+-----END CERTIFICATE REQUEST-----
