@@ -58,7 +58,7 @@ init_per_suite(Config) ->
         get_file(?RKEY, Config),
         get_file(?ROOT_CA_CERT, Config),
         get_file(?TEXT, Config)),
-    [{server_pid, port_open(Cmd)} | Config].
+    [{server_pid, run_cmd(Cmd)} | Config].
 
 end_per_suite(Config) ->
     Pid = ?config(server_pid, Config),
@@ -99,7 +99,7 @@ validate_cert(Config) when is_list(Config) ->
 %%--------------------------------------------------------------------
 %% Intrernal functions -----------------------------------------------
 %%--------------------------------------------------------------------
-port_open(Cmd) ->
+run_cmd(Cmd) ->
     {os_pid, Pid} = erlang:port_info(
         erlang:open_port({spawn, Cmd}, []), os_pid),
     Pid.
