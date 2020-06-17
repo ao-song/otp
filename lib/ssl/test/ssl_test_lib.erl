@@ -506,7 +506,7 @@ init_openssl_server(openssl, _, Options) ->
     wait_for_openssl_server(Port, proplists:get_value(protocol, Options, tls)),
     Pid ! {started, SslPort},
     Pid ! {self(), {port, Port}},
-    openssl_server_loop(Pid, SslPort, Args).
+    openssl_server_loop(Pid, SslPort, Args);
 
 init_openssl_server(Mode, ResponderPort, Options) when Mode == openssl_ocsp orelse
                                                        Mode == openssl_ocsp_revoked ->

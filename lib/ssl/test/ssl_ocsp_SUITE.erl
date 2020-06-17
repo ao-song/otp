@@ -116,8 +116,8 @@ ocsp_stapling_basic(Config)
     Client = ssl_test_lib:start_client(erlang,
                                        [{port, Port},
                                         {options, ClientOpts}], Config),
-    ssl_test_lib:send(Client, Data),
-    Data = ssl_test_lib:check_active_receive(Server, Data),
+    ssl_test_lib:send(Server, Data),
+    Data = ssl_test_lib:check_active_receive(Client, Data),
 
     ssl_test_lib:close(Server),
     ssl_test_lib:close(Client).
@@ -138,8 +138,8 @@ ocsp_stapling_with_nonce(Config)
     Client = ssl_test_lib:start_client(erlang,
                                        [{port, Port},
                                         {options, ClientOpts}], Config),
-    ssl_test_lib:send(Client, Data),
-    Data = ssl_test_lib:check_active_receive(Server, Data),
+    ssl_test_lib:send(Server, Data),
+    Data = ssl_test_lib:check_active_receive(Client, Data),
 
     ssl_test_lib:close(Server),
     ssl_test_lib:close(Client).
@@ -168,8 +168,8 @@ ocsp_stapling_with_responder_cert(Config)
     Client = ssl_test_lib:start_client(erlang,
                                        [{port, Port},
                                         {options, ClientOpts}], Config),
-    ssl_test_lib:send(Client, Data),
-    Data = ssl_test_lib:check_active_receive(Server, Data),
+    ssl_test_lib:send(Server, Data),
+    Data = ssl_test_lib:check_active_receive(Client, Data),
 
     ssl_test_lib:close(Server),
     ssl_test_lib:close(Client).
@@ -192,8 +192,8 @@ ocsp_stapling_revoked(Config)
                                         {options, ClientOpts}], Config),
     ct:pal("Connection failed:~p~n", [Client]),
 
-    ssl_test_lib:send(Client, Data),
-    Data = ssl_test_lib:check_active_receive(Server, Data),
+    ssl_test_lib:send(Server, Data),
+    Data = ssl_test_lib:check_active_receive(Client, Data),
 
     ssl_test_lib:close(Server),
     ssl_test_lib:close(Client).
