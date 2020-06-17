@@ -541,7 +541,8 @@ hello(internal, #hello_verify_request{cookie = Cookie}, #state{static_env = #sta
                                                                  = ssl_handshake:init_handshake_history()}}),
     
     {State2, Actions} = send_handshake(Hello, State1), 
-    State = State2#state{connection_env = CEnv#connection_env{negotiated_version = Version} % RequestedVersion
+    State3 = tls_handshake_1_3:update_ocsp_state(OcspStaplingOpt, OcspNonce, State2),
+    State = State3#state{connection_env = CEnv#connection_env{negotiated_version = Version} % RequestedVersion
                         },
     next_event(?FUNCTION_NAME, no_record, State, Actions);
 hello(internal, #client_hello{extensions = Extensions} = Hello, 
@@ -668,8 +669,9 @@ abbreviated(Type, Event, State) ->
 -spec wait_ocsp_stapling(gen_statem:event_type(), term(), #state{}) ->
 		     gen_statem:state_function_result().
 %%--------------------------------------------------------------------
-wait_ocsp_stapling(enter, Event, State) ->
-    gen_info(Event, ?FUNCTION_NAME, State);
+wait_ocsp_stapling(enter, _Event, State0) ->
+    {State, Actions} = handle_flight_timer(State0),
+    {keep_state, State, Actions};
 wait_ocsp_stapling(info, Event, State) ->
     gen_info(Event, ?FUNCTION_NAME, State);
 wait_ocsp_stapling(state_timeout, Event, State) ->
