@@ -2022,9 +2022,9 @@ ocsp_check(OtpCert, CertPath, #{cert_ext := CertExt,
             ocsp_responses_check(OtpCert, CertPath, Responses)
     end.
 
-ocsp_responses_check(_OtpCert, _CertPath, {error, _Reason}) ->
+ocsp_responses_check(_OtpCert, _CertPath, Reason = {error, _Reason}) ->
     %% no valid OCSP response
-    not_applicable;
+    {bad_cert, {revocation_status_undetermined, Reason}};
 ocsp_responses_check(OtpCert, CertPath, {ok, Responses}) ->
     case public_key:ocsp_status(OtpCert, CertPath, Responses) of
         {good, _Info} ->
